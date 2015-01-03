@@ -45,7 +45,8 @@ def voro_dump_header(f):
 			
 	for i in range(len(arrVoroIndices)):
 		ret += ('# Type %i: %s\n' % (i, tuple(arrVoroIndices[i])))
-		
+	
+	ret += '# Type 0: OTHER\n'
 	ret += '# \n\n'
 
 	return ret

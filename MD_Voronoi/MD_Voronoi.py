@@ -39,23 +39,37 @@ import MD_Voronoi_Headers
 # Import Voronoi analysis definitions
 from MD_Voronoi_Defs import *
 
-# Used globally later for importing lammpstrj files
+# Global variables
+# Used for importing lammpstrj files
 node = 0
-# Used globally later for storing the number of particles
+# Keep track of last analysed frame
+last_frame = -1
+# Used for storing the number of particles
 numOfParticles = 0
-# Used globally later for writing files
+# Used for writing files
 workDir = '~/'
+# Voronoi indices per particle
+voro_indices = []
+# Particle ID
+ids = []
+# Particle type
+types = []
+# Particle position
+positions = []
+# Variables for histogram analysis
+unique = []
+counts = []
+voro_types = []
+# Voronoi histogram
+voroHistogram = []
 #
 arrays = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99]
 
 # Returns the type of Voronoi cell.
-# a:  This cell
-# ar: Voronoi cell reference (VoroIndices_Int32)
-#
-# TODO: Delete argument and use global variable << VoroIndices_Int32 >>
-def type_deduction(a,ar):
-	for i in range(len(ar)):
-		if numpy.array_equal(ar[i],a):
+# cell:  Voronoi cell to analyse
+def type_deduction(cell):
+	for i in range(len(arrVoroIndices)):
+		if numpy.array_equal(arrVoroIndices[i],cell):
 			return i+1			
 	return 0
 
@@ -92,37 +106,40 @@ def id_deduction(a,index,ar,typ):
 	return (temp2,temp)
 
 # 
-# a: Voronoi indices for each particle in frame
-# ar: Voronoi cell reference (VoroIndices_Int32)
-#
-# TODO: Delete argument and use global variable << VoroIndices_Int32 >>
-def row_histogram(a,ar):
-	# This way, we get uniqueness by row, not by each element
-	ca = numpy.ascontiguousarray(a).view([('', a.dtype)] * a.shape[1])
+def row_histogram(frame):	
+	global voroHistogram
+	global unique
+	global voro_types
+	global counts
+	
+	if (last_frame != frame) or (last_frame == -1):
+		print 'You have to first voro_dump() the requested frame'
+		print 'Last analysed frame: ',last_frame
+		print 'Requested frame: ',frame
+		return
+	
 	# Returns the sorted unique elements of an array.
-	unique, indices, inverse = numpy.unique(ca, return_index=True, return_inverse=True)
+	unique = numpy.unique(voro_types)
 	# TODO: Delete this and add return_counts option in numpy.unique (numpy 1.9.0)
-	counts = numpy.bincount(inverse)
-	# vector1 stores the voronoi indices of those cells found in this frame
-	# and that matches one of those defined in arrVoroIndices
-	vector1 = []
-	# vector2 stores the cell count for the corresponding cell type (same position
-	# in vector1)
-	vector2 = []
-	# For each voronoi reference type
-	for i in range(len(ar)):
-		# TODO: Is it necessary to convert arrVoroIndices into VoroIndices_Int32?
-		#		Yes, because ovito output is int32
-		# This convertion adds a needed depth in the selection ([i][j][k])
-		# ar[0][0] = (0, 0, 0, 0, 12, 0)
-		temp = ar[i][0]
-		# For each unique voronoi type in frame
-		for w in range (len(unique)):
-			if numpy.array_equal(temp,unique[w]):
-				vector1.insert(i,a[indices[w]])
-				vector2.insert(i,counts[w])
-				break
-	return (vector1, vector2)
+	counts = numpy.bincount(voro_types)
+	#TODO: Insert empty rows in histogram to keep the order. This will
+	# allow to analyse any specified frame
+	print 'Frame: ',frame,' len hist: ',len(voroHistogram)
+	# Convention: Initial frame = 0
+	if(len(voroHistogram) <= frame):
+		for i in range(len(voroHistogram),frame-len(voroHistogram)+1):
+			print i
+			voroHistogram.insert(i,[])
+	
+	print 'After, Frame: ',frame,' len hist: ',len(voroHistogram)
+	
+	for i in range(len(arrVoroIndices)):
+		if (unique[i] == i):
+			voroHistogram[frame].insert(i,[i,counts[i],(counts[i]/float(numOfParticles))*100])
+		else:
+			voroHistogram[frame].insert(i,[i,0,0])
+						
+	return
 
 def calculo_ovito(frame):
 	ovito.dataset.anim.current_frame = frame
@@ -148,7 +165,7 @@ def escribe_archivo(fdR, fdW, arrs):
 		fdW.write('\n')
 		j = j + 0.005
 
-def voro_dump(lammpstrj_file):
+def voro_dump(lammpstrj_file, frame):
 	
 	lammpstrj_file = os.path.realpath(lammpstrj_file)	
 	if os.path.isfile(lammpstrj_file) is not True:
@@ -158,6 +175,15 @@ def voro_dump(lammpstrj_file):
 	global node		
 	# Load a simulation snapshot of a Cu-Zr metallic glass.
 	node = import_file(lammpstrj_file)
+	
+	# Check if requested frame exists
+	if (frame >= node.source.num_frames):
+		print 'Requested frame for analysis doesn\'t exists in node. (Check your lammpstrj files)'
+		return
+		
+	global last_frame
+	last_frame = frame
+		
 	# Set up the Voronoi analysis modifier.
 	node.modifiers.append(VoronoiAnalysisModifier(
 		compute_indices = True,
@@ -172,7 +198,7 @@ def voro_dump(lammpstrj_file):
 	global numOfParticles
 	numOfParticles = node.source.data['Position'].size
 	
-	ovito.dataset.anim.current_frame = 0
+	ovito.dataset.anim.current_frame = frame
 	node.compute()
 
 	voro_indices = node.output["Voronoi Index"].array
@@ -182,19 +208,24 @@ def voro_dump(lammpstrj_file):
 	
 	# Working directory. Not the one where we executed MD_Voronoi,
 	# the path where we read lammpstrj_file
+	# TODO: workDir initliaized in module, not in this function
 	global workDir
 	workDir = os.path.dirname(os.path.realpath(lammpstrj_file))
 	
+	global voro_types
+	voro_types = []
+	
 	dump_file = open(workDir+'/dump_MD_Voronoi', 'w')
 	dump_file.write(MD_Voronoi_Headers.voro_dump_header(lammpstrj_file))
-	dump_file.write('id particle_type x y z voro_type\n')
+	dump_file.write('id particle_type x y z voro_type\n')	
 	for i in range(numOfParticles):
+		voro_types.insert(i,type_deduction(voro_indices[i]))
 		dump_file.write('%u %i %f %f %f %u\n' % (	ids[i], 			\
 													types[i],			\
 													positions[i][0], 	\
 													positions[i][1],  	\
 													positions[i][2], 	\
-													type_deduction(voro_indices[i],arrVoroIndices)))
+													voro_types[i]))
 											
 	dump_file.close()
 	return
@@ -313,6 +344,4 @@ if __name__ == "__main__":
 		sys.exit()
     
 	print "Running module, just dump functionality. For other outputs, run the different functions from your own script"
-	#voro_dump(lammpstrj_file)
-	
-	print MD_SCRIPTS_DIR
+	voro_dump(lammpstrj_file)
