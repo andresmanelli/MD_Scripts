@@ -1,29 +1,30 @@
-#  MD_Voronoy.py
-#  coding: UTF-8
-#  
-#  Authors:  Ardiani, Franco
-#            Manelli, Andrés
-#  
-#  This program is free software; you can redistribute it and/or modify
-#  it under the terms of the GNU General Public License as published by
-#  the Free Software Foundation; either version 2 of the License, or
-#  (at your option) any later version.
-#  
-#  This program is distributed in the hope that it will be useful,
-#  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#  GNU General Public License for more details.
-#  
-#  You should have received a copy of the GNU General Public License
-#  along with this program; if not, write to the Free Software
-#  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
-#  MA 02110-1301, USA.
-#  
-#  ------------------------------------------------------------------
-#
-#  Python Module MD_Voronoi
-#  
-#  
+# coding=UTF-8
+"""
+  MD_Voronoy.py
+  
+  Authors:  Ardiani, Franco
+            Manelli, Andrés
+  
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
+  
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+  
+  You should have received a copy of the GNU General Public License
+  along with this program; if not, write to the Free Software
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+  MA 02110-1301, USA.
+  
+  ------------------------------------------------------------------
+
+  Python Module MD_Voronoi
+  
+"""  
 
 # Import OVITO modules.
 from ovito.io import *
@@ -65,9 +66,12 @@ voroHistogram = []
 #
 arrays = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99]
 
-# Returns the type of Voronoi cell.
-# cell:  Voronoi cell to analyse
 def type_deduction(cell):
+	"""Returns the type of Voronoi cell.
+	
+	Keyword arguments:
+	cell -- Voronoi cell to analyse
+	"""
 	for i in range(len(arrVoroIndices)):
 		if numpy.array_equal(arrVoroIndices[i],cell):
 			return i+1			
@@ -105,8 +109,21 @@ def id_deduction(a,index,ar,typ):
 			temp.append(0)
 	return (temp2,temp)
 
-# 
-def row_histogram(frame):	
+def first_line(lines):
+	for i, line in enumerate(lines):
+		if line[0] != '#':
+			return i
+			
+	return len(lines)
+
+def voro_histogram(frame, force=False, writeFile=True):	
+	"""Generates a histogram of Voronoi types for the specified frame.
+	
+	Keyword arguments:
+	frame -- Frame number to analyse, starting from 0
+	force -- If last frame was not <<frame>>, re-voro_dump() frame.
+	writeFile -- Write histogram to disk
+	"""
 	global voroHistogram
 	global unique
 	global voro_types
@@ -122,23 +139,40 @@ def row_histogram(frame):
 	unique = numpy.unique(voro_types)
 	# TODO: Delete this and add return_counts option in numpy.unique (numpy 1.9.0)
 	counts = numpy.bincount(voro_types)
-	#TODO: Insert empty rows in histogram to keep the order. This will
-	# allow to analyse any specified frame
-	print 'Frame: ',frame,' len hist: ',len(voroHistogram)
-	# Convention: Initial frame = 0
+	# Convention: Initial frame = 0	
 	if(len(voroHistogram) <= frame):
-		for i in range(len(voroHistogram),frame-len(voroHistogram)+1):
-			print i
+		for i in range(len(voroHistogram),frame+1):
 			voroHistogram.insert(i,[])
-	
-	print 'After, Frame: ',frame,' len hist: ',len(voroHistogram)
-	
+
 	for i in range(len(arrVoroIndices)):
 		if (unique[i] == i):
 			voroHistogram[frame].insert(i,[i,counts[i],(counts[i]/float(numOfParticles))*100])
 		else:
 			voroHistogram[frame].insert(i,[i,0,0])
-						
+	
+	if(writeFile):	
+		histFile = os.path.realpath(workDir+'/hist_MD_Voronoi')	
+		if os.path.isfile(histFile) is not True:
+			hFile = open(histFile, 'w')
+			hFile.write(MD_Voronoi_Headers.voro_hist_header())
+			hFile.close()
+		
+		hFile = open(histFile, 'r')
+		lines = hFile.readlines()
+		hFile.close()
+		first = first_line(lines)
+		if(len(lines) < first+frame+1):
+			for i in range(len(lines),first+frame+1):
+				lines.insert(i,' \n')
+		lines[first+frame] = '%u ' % (frame)
+		for i in range(len(arrVoroIndices)):
+			lines[first+frame] += '%u ' % (voroHistogram[frame][i][1])
+		lines[first+frame] += '\n'
+		
+		hFile = open(histFile,'w')
+		for line in lines:
+			hFile.write(line)
+	
 	return
 
 def calculo_ovito(frame):
@@ -150,7 +184,6 @@ def calculo_ovito(frame):
 	#voro_indices = node.output["Voronoi Index"].array
 	#indices = node.output["Particle Identifier"].array
 	#type_at = node.output["Particle Type"].array
-	particlePositions = node.output["Position"].array
 	#unique_indices, counts = row_histogram(voro_indices,VoroIndices_Int32)
 	#tempI,tempCUI = id_deduction(voro_indices, indices, VoroIndices_Int32, type_at)
 
@@ -164,13 +197,25 @@ def escribe_archivo(fdR, fdW, arrs):
 			fdW.write('%i\t' % (lines.count(" "+str(i)+" ")))
 		fdW.write('\n')
 		j = j + 0.005
-
-def voro_dump(lammpstrj_file, frame):
+		
+def voro_dump(lammpstrj_file, frame, writeFile=False):
+	"""Analyse per-particle Voronoi type and write dump file
 	
+	Keyword arguments:
+	lammpstrj_file -- Lammps dump file (First of simulation)
+	frame -- Frame to analyse, starting from 0
+	writeFile -- Write to disk dump info
+	"""
 	lammpstrj_file = os.path.realpath(lammpstrj_file)	
 	if os.path.isfile(lammpstrj_file) is not True:
 		print "The file",lammpstrj_file,"does not exists..."
 		sys.exit()
+	
+	# Working directory. Not the one where we executed MD_Voronoi,
+	# the path where we read lammpstrj_file
+	# TODO: workDir initliaized in module, not in this function
+	global workDir
+	workDir = os.path.dirname(os.path.realpath(lammpstrj_file))
 	
 	global node		
 	# Load a simulation snapshot of a Cu-Zr metallic glass.
@@ -206,28 +251,26 @@ def voro_dump(lammpstrj_file, frame):
 	types = node.output["Particle Type"].array
 	positions = node.output["Position"].array
 	
-	# Working directory. Not the one where we executed MD_Voronoi,
-	# the path where we read lammpstrj_file
-	# TODO: workDir initliaized in module, not in this function
-	global workDir
-	workDir = os.path.dirname(os.path.realpath(lammpstrj_file))
-	
 	global voro_types
 	voro_types = []
 	
-	dump_file = open(workDir+'/dump_MD_Voronoi', 'w')
-	dump_file.write(MD_Voronoi_Headers.voro_dump_header(lammpstrj_file))
-	dump_file.write('id particle_type x y z voro_type\n')	
 	for i in range(numOfParticles):
 		voro_types.insert(i,type_deduction(voro_indices[i]))
-		dump_file.write('%u %i %f %f %f %u\n' % (	ids[i], 			\
-													types[i],			\
-													positions[i][0], 	\
-													positions[i][1],  	\
-													positions[i][2], 	\
-													voro_types[i]))
-											
-	dump_file.close()
+	
+	if(writeFile):
+		dump_file = open(workDir+'/dump_MD_Voronoi', 'w')
+		dump_file.write(MD_Voronoi_Headers.voro_dump_header(lammpstrj_file))
+		dump_file.write('id particle_type x y z voro_type\n')	
+		for i in range(numOfParticles):
+			dump_file.write('%u %i %f %f %f %u\n' % (	ids[i], 			\
+														types[i],			\
+														positions[i][0], 	\
+														positions[i][1],  	\
+														positions[i][2], 	\
+														voro_types[i]))
+												
+		dump_file.close()
+		
 	return
 
 # TODO: Just dump voronoi cell info per particle with position and ID
@@ -344,4 +387,4 @@ if __name__ == "__main__":
 		sys.exit()
     
 	print "Running module, just dump functionality. For other outputs, run the different functions from your own script"
-	voro_dump(lammpstrj_file)
+	voro_dump(lammpstrj_file,0)
