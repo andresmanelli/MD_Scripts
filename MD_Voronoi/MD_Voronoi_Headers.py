@@ -75,3 +75,22 @@ def voro_hist_header():
 	ret += '\n\n'
 
 	return ret
+
+def voro_changes_header():
+	ret = 	'# \n' + \
+			'# Voronoi type-change histogram \n' + \
+			'# \n' + \
+			'# ' + time.strftime("%d/%m/%Y") + '\n' + \
+			'# ' + time.strftime("%H:%M:%S") + '\n' + \
+			'# Created with module MD_Voronoi \n' + \
+			'# https://github.com/andresmanelli/MD_Scripts.git \n' + \
+			'# \n' + \
+			'# Reference: AB means from type A to type B\n' + \
+			'# e.g.: 34 --> from type 3 to type 4\n' + \
+			'# frame '
+	for i in range(100):
+		ret += ('%2.i ' % (i))
+
+	ret += '\n\n'
+
+	return ret
