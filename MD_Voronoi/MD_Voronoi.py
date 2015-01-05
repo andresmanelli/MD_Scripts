@@ -258,7 +258,7 @@ def voro_dump(lammpstrj_file, frame, writeFile=False):
 		voro_types.insert(i,type_deduction(voro_indices[i]))
 	
 	if(writeFile):
-		dump_file = open(workDir+'/dump_MD_Voronoi', 'w')
+		dump_file = open(workDir+'/dump_MD_Voronoi_Frame_'+frame, 'w')
 		dump_file.write(MD_Voronoi_Headers.voro_dump_header(lammpstrj_file))
 		dump_file.write('id particle_type x y z voro_type\n')	
 		for i in range(numOfParticles):
