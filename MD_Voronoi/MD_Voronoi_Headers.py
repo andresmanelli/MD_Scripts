@@ -69,7 +69,7 @@ def voro_hist_header():
 	
 	ret += '# Type 0: OTHER\n'
 	ret += '# \n# frame '
-	for i in range(len(arrVoroIndices)):
+	for i in range(len(arrVoroIndices)+1):
 		ret += ('n_type_%i ' % (i))
 
 	ret += '\n\n'
@@ -89,7 +89,7 @@ def voro_changes_header():
 			'# e.g.: 34 --> from type 3 to type 4\n' + \
 			'# frame '
 	for i in range(100):
-		ret += ('%2.i ' % (i))
+		ret += ('%i ' % (i))
 
 	ret += '\n\n'
 

@@ -41,36 +41,80 @@ import MD_Voronoi_Headers
 from MD_Voronoi_Defs import *
 
 """Global variables"""
-# Keep track of lammpstrj file
-lammpstrj_file = ''
-# Used for importing lammpstrj files
-node = 0
-# Used for storing the number of particles
-numOfParticles = 0
-# Used for writing files
-workDir = '~/'
-# Voronoi types per particle [FRAME, [TYPES]]
-voro_types = [-1,[]]
-# Voronoi indices per particle (Reference to see changes) [FRAME, [TYPES]]
-voro_types_ref = [-1,[]]
-# Particle ID
-ids = []
-# Particle type
-types = []
-# Particle position
-positions = []
-# Variables for histogram analysis
-unique = []
-counts = []
-# Voronoi histogram
-voroHistogram = []
-#
-arrays = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99]
+group = 'all' # 'all' or array of particle ids
+lammpstrj_file = '' # Keep track of lammpstrj file
+node = 0 # Used for importing lammpstrj files
+numOfParticles = 0 # Used for storing the number of particles
+workDir = '~/' # Used for writing files
+voro_types = [-1,[]] # Voronoi types per particle [FRAME, [TYPES]]
+voro_types_ref = [-1,[]] # Voronoi indices per particle (Reference to see changes) [FRAME, [TYPES]]
+ids = [] # Particle ID
+types = [] # Particle type
+positions = [] # Particle position
+counts = [] # Variable for histogram analysis
+voroHistogram = [] # Voronoi histogram
 
-def set_file(f):
+def group(shape,par):
+	"""Returns the indexes of the particles contained in this region for the
+	current frame, for accesing the arrays (ids, positions, etc)
+	
+	Keyword arguments:
+	shape -- 'sphere' or [...]
+	par --  [cx, cy, cz, radius] for 'sphere'
+			[edge, cx, cy, cz] for 'cube'
+			[...] for [...]
+	frame -- frame
+	"""
+	global positions, ids
+	g = []
+	if shape == 'sphere':
+		if len(par) is not 4:
+			print 'Parameters of sphere are not ok..'
+			return []
+		cx = par[0]
+		cy = par[1]
+		cz = par[2]
+		r = par[3]
+		for i,p in enumerate(positions):
+			if ((p[0] - cx)**2 + (p[1] - cy)**2 + (p[2] - cz)**2) <= r**2:
+				g.insert(len(g),i)
+		return g
+	elif shape == 'cube':
+		print 'Not yet implemented..'
+		return []
+	else:
+		print 'Shape not recognized'
+		return []
+	
+def init(f):
 	"""Sets the file for analysis"""
-	global lammpstrj_file
-	lammpstrj_file = f
+	
+	global lammpstrj_file, workDir, node, numOfParticles
+	
+	lammpstrj_file = os.path.realpath(f)	
+	if os.path.isfile(lammpstrj_file) is not True:
+		print "The file",lammpstrj_file,"does not exists..."
+		sys.exit()
+	
+	# Working directory. Not the one where we executed MD_Voronoi,
+	# the path where we read lammpstrj_file
+	workDir = os.path.dirname(os.path.realpath(lammpstrj_file))
+		
+	# Load a simulation snapshot of a Cu-Zr metallic glass.
+	node = import_file(lammpstrj_file)
+			
+	# Set up the Voronoi analysis modifier.
+	node.modifiers.append(VoronoiAnalysisModifier(
+		compute_indices = True,
+		use_radii = False,
+		edge_count = 6,
+		edge_threshold = 0,
+		use_cutoff = True,
+		cutoff = 6.0
+	))
+	
+	# Number of particles
+	numOfParticles = node.source.data['Position'].size
 
 def type_deduction(cell):
 	"""Returns the type of Voronoi cell.
@@ -83,60 +127,38 @@ def type_deduction(cell):
 			return i+1			
 	return 0
 
-# For each particle, checks what voronoi cell type it belongs to.
-# Returns an array of cell type for all particles, and an array of cell type for Cu-centered cells
-# 
-# a: Voronoi indices for each particle in frame
-# index: Particles IDs
-# ar: Voronoi cell reference (VoroIndices_Int32)
-# typ: Particles types
-#
-# TODO: Delete argument and use global variable << VoroIndices_Int32 >>
-def id_deduction(a,index,ar,typ):
-	global numOfParticles
-	# This way, we get uniqueness by row, not by each element
-	ca = numpy.ascontiguousarray(a).view([('', a.dtype)] * a.shape[1])
-	# Get references of ordering with IDs. (This doesn'y modify the array, but returns an array with the ordering positions)
-	indexes = numpy.argsort(index)[::1]
-	# Cu particles types
-	temp = []
-	# All particles types
-	temp2 = []
-	for elemento in range(numOfParticles):
-		# Type of each particle, respecting order with increasing ID
-		currentType = type_deduction(ca[indexes[elemento]],ar)
-		temp2.append(currentType)
-		# 1 stands for a Cu particle
-		# TODO: DEFINE COPPER 1
-		# type == 0 <=> not Cu
-		if typ[indexes[elemento]]==1:
-			temp.append(currentType)
-		else:
-			temp.append(0)
-	return (temp2,temp)
-
 def first_line(lines):
+	"""Returns the first writable line in file after header"""
 	for i, line in enumerate(lines):
 		if line[0] != '#':
 			return i
 			
 	return len(lines)
 
-def voro_histogram(frame, force=False, writeFile=True):	
+def filter_group(group):
+	"""Returns a filtered array with the indexes given by group."""
+	ret = []
+	for i in group:
+		ret.insert(len(ret),voro_types[1][i])
+		
+	return ret
+
+def voro_histogram(frame, force=False, writeFile=True, group='all', justCu=False):	
 	"""Generates a histogram of Voronoi types for the specified frame.
 	
 	Keyword arguments:
 	frame -- Frame number to analyse, starting from 0
 	force -- If last frame was not <<frame>>, re-voro_dump() frame.
 	writeFile -- Write histogram to disk
+	group -- Only this particles. See functon group()
+	justCu -- Only for Cu-centered cells
 	
 	TODO: Not for frame, but for given array of voro_types,
 	they will contain frame number now!
 	"""
-	global voroHistogram
-	global unique
-	global voro_types
-	global counts
+	global voroHistogram, voro_types, counts
+	
+	print 'Histogram analysis for frame: ',frame
 	
 	if (voro_types[0] != frame) or (voro_types[0] == -1):
 		print 'You have to first voro_dump() the requested frame'
@@ -144,23 +166,37 @@ def voro_histogram(frame, force=False, writeFile=True):
 		print 'Requested frame: ',frame
 		return
 	
-	# Returns the sorted unique elements of an array.
-	unique = numpy.unique(voro_types[1])
-	# TODO: Delete this and add return_counts option in numpy.unique (numpy 1.9.0)
-	counts = numpy.bincount(voro_types[1])
+	voro_filtered = []
+	voro_pre_filtered = voro_types[1]
+	suffix = 'all'
+	if group is not 'all':
+		suffix = 'group'
+		voro_pre_filtered = filter_group(group)
+		
+	if justCu is True:
+		suffix += '_Cu'
+		for i, t in enumerate(types):
+			if t == 1:
+				voro_filtered.insert(len(voro_filtered), voro_pre_filtered[i])
+	else:
+		voro_filtered = voro_pre_filtered
+	
+	counts = numpy.bincount(voro_filtered)
 	# Convention: Initial frame = 0	
 	if(len(voroHistogram) <= frame):
 		for i in range(len(voroHistogram),frame+1):
 			voroHistogram.insert(i,[])
-
-	for i in range(len(arrVoroIndices)):
-		if (unique[i] == i):
-			voroHistogram[frame].insert(i,[i,counts[i],(counts[i]/float(numOfParticles))*100])
-		else:
-			voroHistogram[frame].insert(i,[i,0,0])
 	
-	if(writeFile):	
-		histFile = os.path.realpath(workDir+'/hist_MD_Voronoi')	
+	# If last types are not present, length of counts is smaller than 
+	# length of arrVoroIndices
+	for i in range(len(arrVoroIndices)-len(counts)+1):
+		counts = numpy.insert(counts,len(counts),[0])
+	
+	for i in range(len(counts)):
+		voroHistogram[frame].insert(i,[i,counts[i],(counts[i]/float(numOfParticles))*100])
+	
+	if(writeFile):
+		histFile = os.path.realpath(workDir+'/hist_MD_Voronoi_'+suffix)	
 		if os.path.isfile(histFile) is not True:
 			hFile = open(histFile, 'w')
 			hFile.write(MD_Voronoi_Headers.voro_hist_header())
@@ -174,7 +210,7 @@ def voro_histogram(frame, force=False, writeFile=True):
 			for i in range(len(lines),first+frame+1):
 				lines.insert(i,' \n')
 		lines[first+frame] = '%u ' % (frame)
-		for i in range(len(arrVoroIndices)):
+		for i in range(len(counts)):
 			lines[first+frame] += '%u ' % (voroHistogram[frame][i][1])
 		lines[first+frame] += '\n'
 		
@@ -198,16 +234,6 @@ def calculo_ovito(frame):
 	#tempI,tempCUI = id_deduction(voro_indices, indices, VoroIndices_Int32, type_at)
 
 	return #(tempI,tempCUI,unique_indices,counts,len(voro_indices))
-
-def escribe_archivo(fdR, fdW, arrs):
-	"""Cuenta cuantos cambios ocurrieron del tipo i al tipo j respecto de otro frame"""
-	j=0.005
-	for lines in fdR:
-		fdW.write('%.3f\t' % (j))
-		for i in arrs:
-			fdW.write('%i\t' % (lines.count(" "+str(i)+" ")))
-		fdW.write('\n')
-		j = j + 0.005
 		
 def voro_dump(frame, writeFile=False):
 	"""Analyse per-particle Voronoi type and write dump file
@@ -219,36 +245,16 @@ def voro_dump(frame, writeFile=False):
 	global lammpstrj_file, workDir, node, numOfParticles
 	global ids, types, positions
 	
-	lammpstrj_file = os.path.realpath(lammpstrj_file)	
-	if os.path.isfile(lammpstrj_file) is not True:
-		print "The file",lammpstrj_file,"does not exists..."
-		sys.exit()
-	
-	# Working directory. Not the one where we executed MD_Voronoi,
-	# the path where we read lammpstrj_file
-	# TODO: workDir initliaized in module, not in this function
-	workDir = os.path.dirname(os.path.realpath(lammpstrj_file))
-		
-	# Load a simulation snapshot of a Cu-Zr metallic glass.
-	node = import_file(lammpstrj_file)
-	
 	# Check if requested frame exists
 	if (frame >= node.source.num_frames):
 		print 'Requested frame for analysis doesn\'t exists in node. (Check your lammpstrj files)'
 		return [-1,[]]
-		
-	# Set up the Voronoi analysis modifier.
-	node.modifiers.append(VoronoiAnalysisModifier(
-		compute_indices = True,
-		use_radii = False,
-		edge_count = 6,
-		edge_threshold = 0,
-		use_cutoff = True,
-		cutoff = 6.0
-	))
 	
-	# Number of particles
-	numOfParticles = node.source.data['Position'].size
+	# Check if already dump-ed
+	if voro_types[0] == frame:
+		return voro_types
+	
+	print 'Dumping frame ',frame
 	
 	ovito.dataset.anim.current_frame = frame
 	node.compute()
@@ -264,7 +270,7 @@ def voro_dump(frame, writeFile=False):
 		voro_types_local[1].insert(i,type_deduction(voro_indices[i]))
 	
 	if(writeFile):
-		dump_file = open(workDir+'/dump_MD_Voronoi_Frame_'+frame, 'w')
+		dump_file = open(workDir+'/dump_MD_Voronoi_Frame_'+`frame`, 'w')
 		dump_file.write(MD_Voronoi_Headers.voro_dump_header(lammpstrj_file))
 		dump_file.write('id particle_type x y z voro_type\n')	
 		for i in range(numOfParticles):
@@ -291,8 +297,11 @@ def voro_change(frameRef, frame, justCu=False, writeFile=True):
 	"""
 	global voro_types, voro_types_ref, lammpstrj_file, types, numOfParticles
 	
+	print 'Change analysis for ref: ',frameRef,'and frame: ',frame
+	
 	if(frameRef == frame):
 		# Same frame, no change!
+		voro_types_ref = voro_types
 		return
 	# Prepare data
 	elif(frameRef == voro_types_ref[0]):
@@ -323,20 +332,21 @@ def voro_change(frameRef, frame, justCu=False, writeFile=True):
 		if((justCu is True and types[i] == 1) or (justCu is not True)):
 			changes.insert(i,voro_types_ref[1][i]*10+voro_types[1][i])
 	
-	unique = numpy.unique(changes)
-	# TODO: Delete this and add return_counts option in numpy.unique (numpy 1.9.0)
 	counts = numpy.bincount(changes)
 
-	for i in range(100):
-		if len(unique) > i and unique[i] == i:
-			n_changes.insert(i,[i,counts[i],(counts[i]/float(numOfParticles))*100])
-		else:
-			n_changes.insert(i,[i,0,0])
+	# Length of counts is different than length of arrVoroIndices^2 
+	# if there aren't some kinds of changes
+	# +1 because type 0 is not defined in MD_Voronoi_Defs
+	for i in range((len(arrVoroIndices)+1)**2-len(counts)):
+		counts = numpy.insert(counts,len(counts),[0])
+
+	for i in range(len(counts)):
+		n_changes.insert(i,[i,counts[i],(counts[i]/float(numOfParticles))*100])
 	
 	if(writeFile):
 		print 	'Warning: Voronoi type-change histogram file is only useful \
-				when frame of reference remains constant. Keep in mind that running \
-				full analysis will write down this file with respect of frame 0'
+when frame of reference remains constant. Keep in mind that running \
+full analysis will write down this file with respect of frame 0'
 		which = 'all'
 		if justCu is True:
 			which = 'Cu'
@@ -364,6 +374,18 @@ def voro_change(frameRef, frame, justCu=False, writeFile=True):
 		cFile.close()
 	
 	return n_changes
+
+def voro_combo_A():
+	""" - Dump for all particles
+		- Histogram for all particles
+		- Changes with respect to frame 0
+		- Write all files
+	"""
+	global node, voro_types
+	for frame in range(node.source.num_frames):
+		voro_types = voro_dump(frame,writeFile=True)
+		voro_histogram(frame)
+		voro_change(0,frame)
 
 # TODO: Just dump voronoi cell info per particle with position and ID
 #       for later analysis.
@@ -469,14 +491,3 @@ def dump(lammps_file):
 	fAnt.close()
 	fcuI.close()
 	fcuA.close()
-
-if __name__ == "__main__":
-	import sys
-	lammpstrj_file = os.path.realpath(sys.argv[1])
-
-	if os.path.isfile(lammpstrj_file	) is not True:
-		print "The file",lammpstrj_file,"does not exists..."
-		sys.exit()
-    
-	print "Running module, just dump functionality. For other outputs, run the different functions from your own script"
-	voro_dump(0)

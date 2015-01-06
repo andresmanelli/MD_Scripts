@@ -34,6 +34,7 @@ import numpy
 # [0, 0, 0, 0, 12, 0] => 12 faces with 5 edges each.
 # [0, 0, 0, 3, 6, 3]  => 3 faces with 4 edges, 6 faces with 5 edges, 3 faces with 6 edges
 # Note: The first two indices are always zero because there are no faces with less than three edges.
+
 arrVoroIndices = numpy.array([	[0,0,0,0,12,0], \
 								[0,0,0,2,8,2],	\
 								[0,0,0,2,8,1],	\
