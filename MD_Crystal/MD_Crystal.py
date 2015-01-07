@@ -98,6 +98,11 @@ def insc_sphere(par, tol, struct, frame):
 		
 		N = len(filtered)
 		
+		if N == 0:
+			print 'insc_sphere(',par,',',tol,',',struct,',',frame,'):'
+			print 'Reached limit of N == 0. No particles left. Aborting..'
+			break
+		
 		n_struct = numpy.bincount(filtered)
 		# If last types are not present, length of n_struct is smaller than 
 		# length of STRUCT_TYPES
