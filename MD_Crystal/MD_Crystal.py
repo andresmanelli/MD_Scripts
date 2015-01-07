@@ -75,12 +75,6 @@ def insc_sphere(par, tol, struct, frame):
 		node.compute()
 		struct_type = [frame,node.output['Structure Type'].array]
 		
-	expsMod = SelectExpressionModifier()
-	dspMod = DeleteSelectedParticlesModifier()
-
-	node.modifiers.append(expsMod)
-	node.modifiers.append(dspMod)
-	
 	tolAct = 0
 	local_positions = node.output['Position'].array
 	filtered = struct_type[1]
