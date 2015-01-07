@@ -35,7 +35,10 @@ import numpy
 # [0, 0, 0, 3, 6, 3]  => 3 faces with 4 edges, 6 faces with 5 edges, 3 faces with 6 edges
 # Note: The first two indices are always zero because there are no faces with less than three edges.
 
-arrVoroIndices = numpy.array([	[0,0,0,0,12,0], \
+arrVoroIndices_A = numpy.array([[0,0,5,2,6,0], \
+								[0,0,4,4,6,0]])
+
+arrVoroIndices_B = numpy.array([[0,0,0,0,12,0], \
 								[0,0,0,2,8,2],	\
 								[0,0,0,2,8,1],	\
 								[0,0,0,3,6,3],	\
@@ -44,7 +47,14 @@ arrVoroIndices = numpy.array([	[0,0,0,0,12,0], \
 								[0,0,0,2,8,3],	\
 								[0,0,0,4,4,3],	\
 								[0,0,1,0,9,3]])
+
+arrVoroIndices = arrVoroIndices_A
 								
 # Creates a 'view' of array <<arr>> that points to the same data, but represent it as int32
 # TODO: Verify, is this architecture dependant?
 VoroIndices_Int32 = numpy.ascontiguousarray(arrVoroIndices).view([('', numpy.int32)] * 6)
+
+# TODO: in init set these from info about lammpstrj file
+CU = 1
+ZR = 2
+EL_NAMES = ['_DUMMY','_CU','_ZR']

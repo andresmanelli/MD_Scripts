@@ -26,8 +26,7 @@
   
 """  
 
-# Import OVITO modules.
-from ovito.io import *
+from ovito.io import *   # Import OVITO modules.
 from ovito.modifiers import *
 
 import sys
@@ -46,15 +45,16 @@ lammpstrj_file = '' # Keep track of lammpstrj file
 node = 0 # Used for importing lammpstrj files
 numOfParticles = 0 # Used for storing the number of particles
 workDir = '~/' # Used for writing files
+voro_indices = [-1,[]] # Voronoi indices per particle of last analysed frame
 voro_types = [-1,[]] # Voronoi types per particle [FRAME, [TYPES]]
 voro_types_ref = [-1,[]] # Voronoi indices per particle (Reference to see changes) [FRAME, [TYPES]]
 ids = [] # Particle ID
 types = [] # Particle type
-positions = [] # Particle position
+positions = [-1,[]] # Particle position
 counts = [] # Variable for histogram analysis
 voroHistogram = [] # Voronoi histogram
 
-def group(shape,par):
+def group(shape,par,frame=0):
 	"""Returns the indexes of the particles contained in this region for the
 	current frame, for accesing the arrays (ids, positions, etc)
 	
@@ -65,30 +65,36 @@ def group(shape,par):
 			[...] for [...]
 	frame -- frame
 	"""
-	global positions, ids
-	g = []
-	if shape == 'sphere':
-		if len(par) is not 4:
-			print 'Parameters of sphere are not ok..'
-			return []
-		cx = par[0]
-		cy = par[1]
-		cz = par[2]
-		r = par[3]
-		for i,p in enumerate(positions):
-			if ((p[0] - cx)**2 + (p[1] - cy)**2 + (p[2] - cz)**2) <= r**2:
-				g.insert(len(g),i)
-		return g
-	elif shape == 'cube':
-		print 'Not yet implemented..'
-		return []
-	else:
-		print 'Shape not recognized'
-		return []
+	global positions, ids, voro_types
 	
+	if(frame == positions[0]):	
+		g = []
+		if shape == 'sphere':
+			if len(par) is not 4:
+				print 'Parameters of sphere are not ok..'
+				return []
+			cx = par[0]
+			cy = par[1]
+			cz = par[2]
+			r = par[3]
+			for i,p in enumerate(positions[1]):
+				if ((p[0] - cx)**2 + (p[1] - cy)**2 + (p[2] - cz)**2) <= r**2:
+					g.insert(len(g),i)
+					
+			return g
+		elif shape == 'cube':
+			print 'Not yet implemented..'
+			return []
+		else:
+			print 'Shape not recognized'
+			return []
+	else:
+		voro_types = voro_dump(0)
+		return group(shape,par,frame)
+		
 def init(f):
 	"""Sets the file for analysis"""
-	
+	# TODO: Init also the voronoi reference indices
 	global lammpstrj_file, workDir, node, numOfParticles
 	
 	lammpstrj_file = os.path.realpath(f)	
@@ -135,15 +141,60 @@ def first_line(lines):
 			
 	return len(lines)
 
-def filter_group(group):
-	"""Returns a filtered array with the indexes given by group."""
+def filter_group(group,prop):
+	"""Returns a filtered array with the indexes given by group.
+	
+	Keyword arguments:
+	group -- indexes of particles in group
+	prop -- property to return for this group
+	"""
 	ret = []
+	print 'Filtering group of ',len(group),'atoms'
 	for i in group:
-		ret.insert(len(ret),voro_types[1][i])
+		ret.insert(len(ret),prop[i])
 		
 	return ret
 
-def voro_histogram(frame, force=False, writeFile=True, group='all', justCu=False):	
+def voro_freq(frame, just=False, group='all'):
+	"""Returns an array with 9 more frequent voronoi cells in this frame
+	
+	Keyword arguments:
+	frame -- Frame number to analyse, starting from 0
+	"""
+	global voro_indices, voro_types, types
+	
+	voro_filtered = []
+	voro_pre_filtered = []
+	if(frame == voro_indices[0]):
+		if group is not 'all':
+			voro_pre_filtered = filter_group(group, voro_indices[1])
+			
+		if just is not False:
+			for i, index in enumerate(group):
+				if types[index] == just:
+					voro_filtered.insert(len(voro_filtered), voro_pre_filtered[i])
+		else:
+			voro_filtered = voro_pre_filtered
+		
+		voro_filtered = numpy.array(voro_filtered)
+		
+		# In order to find unique rows
+		filtTemp = numpy.ascontiguousarray(voro_filtered).view(numpy.dtype((numpy.void, voro_filtered.dtype.itemsize * voro_filtered.shape[1])))
+		_, idx, inverse = numpy.unique(filtTemp, return_index=True, return_inverse=True)
+		
+		unique = voro_filtered[idx]
+		counts = numpy.bincount(inverse)
+		indices = numpy.argsort(counts)[::-1]
+		
+		for i in range(10):
+			print unique[indices[i]],' : ',counts[indices[i]]
+			
+		return [unique[indices],counts[indices]]
+	else:
+		voro_types = voro_dump(frame)
+		return voro_freq(frame, group=group, just=just)
+
+def voro_histogram(frame, force=False, writeFile=True, group='all', just=False):	
 	"""Generates a histogram of Voronoi types for the specified frame.
 	
 	Keyword arguments:
@@ -171,12 +222,12 @@ def voro_histogram(frame, force=False, writeFile=True, group='all', justCu=False
 	suffix = 'all'
 	if group is not 'all':
 		suffix = 'group'
-		voro_pre_filtered = filter_group(group)
+		voro_pre_filtered = filter_group(group, voro_types[1])
 		
-	if justCu is True:
-		suffix += '_Cu'
+	if just is not False:
+		suffix += EL_NAMES[just]
 		for i, t in enumerate(types):
-			if t == 1:
+			if t == just:
 				voro_filtered.insert(len(voro_filtered), voro_pre_filtered[i])
 	else:
 		voro_filtered = voro_pre_filtered
@@ -243,7 +294,7 @@ def voro_dump(frame, writeFile=False):
 	writeFile -- Write to disk dump info
 	"""
 	global lammpstrj_file, workDir, node, numOfParticles
-	global ids, types, positions
+	global ids, types, positions, voro_indices, voro_types
 	
 	# Check if requested frame exists
 	if (frame >= node.source.num_frames):
@@ -259,15 +310,17 @@ def voro_dump(frame, writeFile=False):
 	ovito.dataset.anim.current_frame = frame
 	node.compute()
 
-	voro_indices = node.output["Voronoi Index"].array
+	voro_indices[0] = frame
+	voro_indices[1] = node.output["Voronoi Index"].array
 	ids = node.output["Particle Identifier"].array
 	types = node.output["Particle Type"].array
-	positions = node.output["Position"].array
+	positions[0] = frame
+	positions[1] = node.output["Position"].array
 	
 	voro_types_local = [frame,[]]
 	
 	for i in range(numOfParticles):
-		voro_types_local[1].insert(i,type_deduction(voro_indices[i]))
+		voro_types_local[1].insert(i,type_deduction(voro_indices[1][i]))
 	
 	if(writeFile):
 		dump_file = open(workDir+'/dump_MD_Voronoi_Frame_'+`frame`, 'w')
@@ -276,9 +329,9 @@ def voro_dump(frame, writeFile=False):
 		for i in range(numOfParticles):
 			dump_file.write('%u %i %f %f %f %u\n' % (	ids[i], 			\
 														types[i],			\
-														positions[i][0], 	\
-														positions[i][1],  	\
-														positions[i][2], 	\
+														positions[1][i][0], 	\
+														positions[1][i][1],  	\
+														positions[1][i][2], 	\
 														voro_types_local[1][i]))
 												
 		dump_file.close()
