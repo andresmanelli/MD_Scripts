@@ -48,7 +48,7 @@ arrVoroIndices_B = numpy.array([[0,0,0,0,12,0], \
 								[0,0,0,4,4,3],	\
 								[0,0,1,0,9,3]])
 
-arrVoroIndices = arrVoroIndices_A
+arrVoroIndices = arrVoroIndices_B
 								
 # Creates a 'view' of array <<arr>> that points to the same data, but represent it as int32
 # TODO: Verify, is this architecture dependant?

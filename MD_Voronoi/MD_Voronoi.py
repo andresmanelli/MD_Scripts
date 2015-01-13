@@ -440,6 +440,21 @@ def voro_combo_A():
 		voro_histogram(frame)
 		voro_change(0,frame)
 
+def voro_combo_B(group=False):
+	""" - Dump for all particles (Don't write file)
+		- Histogram for all particles (Write file)
+		- Histogram for given group (Write file)
+	"""
+	if group is False:
+		print 'This combo requies a group to be specified'
+		return
+		
+	global node, voro_types
+	for frame in range(node.source.num_frames):
+		voro_types = voro_dump(frame)
+		voro_histogram(frame) # all
+		voro_histogram(frame,group=group) # group
+
 # TODO: Just dump voronoi cell info per particle with position and ID
 #       for later analysis.
 #       The rest of processing like changes with respect of last frame,
