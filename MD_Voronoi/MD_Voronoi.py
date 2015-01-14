@@ -501,9 +501,9 @@ def voro_combo_B(group=False):
 	print 'frames:',frames
 	# Avoid re-dumping
 	if voro_types[0] is not -1:
-		frames = numpy.roll(frames,(len(frames)-voro_types[0])%4)
+		frames = numpy.roll(frames,(len(frames)-voro_types[0])%len(frames))
 		print 'frames:',frames
-		print 'Rolling',(len(frames)-voro_types[0])%4,'frames to frame',frames[0]
+		print 'Rolling',(len(frames)-voro_types[0])%len(frames),'frames to frame',frames[0]
 	for frame in frames:
 		voro_types = voro_dump(frame)
 		voro_histogram(frame) # all
