@@ -40,7 +40,6 @@ import MD_Voronoi_Headers
 from MD_Voronoi_Defs import *
 
 """Global variables"""
-group = 'all' # 'all' or array of particle ids
 lammpstrj_file = '' # Keep track of lammpstrj file
 node = 0 # Used for importing lammpstrj files
 numOfParticles = 0 # Used for storing the number of particles
@@ -53,6 +52,26 @@ types = [] # Particle type
 positions = [-1,[]] # Particle position
 counts = [] # Variable for histogram analysis
 voroHistogram = [] # Voronoi histogram
+
+def init_gv():
+	"""Reset global variables"""
+	
+	global lammpstrj_file, node,	numOfParticles, workDir
+	global voro_indices, voro_types, voro_types_ref, ids, types 
+	global positions, counts, voroHistogram
+	
+	lammpstrj_file = ''
+	node = 0 
+	numOfParticles = 0 
+	workDir = '~/' 
+	voro_indices = [-1,[]] 
+	voro_types = [-1,[]] 
+	voro_types_ref = [-1,[]] 
+	ids = [] 
+	types = [] 
+	positions = [-1,[]]
+	counts = [] 
+	voroHistogram = []
 
 def group(shape,par,frame=0):
 	"""Returns the indexes of the particles contained in this region for the
@@ -120,9 +139,11 @@ def group(shape,par,frame=0):
 		return group(shape,par,frame)
 		
 def init(f):
-	"""Sets the file for analysis"""
+	"""Sets the file for analysis and reset global variables"""
 	# TODO: Init also the voronoi reference indices
 	global lammpstrj_file, workDir, node, numOfParticles
+	
+	init_gv()
 	
 	lammpstrj_file = os.path.realpath(f)	
 	if os.path.isfile(lammpstrj_file) is not True:
