@@ -61,7 +61,8 @@ def group(shape,par,frame=0):
 	Keyword arguments:
 	shape -- 'sphere' or [...]
 	par --  [cx, cy, cz, radius] for 'sphere'
-			[edge, cx, cy, cz] for 'cube'
+			[xlo, xhi, ylo, yhi, zlo, zhi] for 'cube'
+			[x0, y0, z0, a, b, c] for 'ellipsoid'
 			[...] for [...]
 	frame -- frame
 	"""
@@ -81,15 +82,41 @@ def group(shape,par,frame=0):
 				if ((p[0] - cx)**2 + (p[1] - cy)**2 + (p[2] - cz)**2) <= r**2:
 					g.insert(len(g),i)
 					
+			print 'Selected spherical shape of',len(g),'atoms'
 			return g
 		elif shape == 'cube':
-			print 'Not yet implemented..'
-			return []
+			if len(par) is not 6: # xlo xhi, ylo yhi, zlo zhi
+				print 'Parameters of cube are not ok..'
+				return []
+			xlo, xhi, ylo, yhi, zlo, zhi = par[0],par[1],par[2],par[3],par[4],par[5]
+			for i,p in enumerate(positions[1]):
+				if 	(p[0] >= xlo and p[0] <= xhi) and \
+					(p[1] >= ylo and p[1] <= yhi) and \
+					(p[2] >= zlo and p[2] <= zhi):
+					g.insert(len(g),i)				
+			
+			print 'Selected cubic shape of',len(g),'atoms'
+			
+			return g
+		elif shape == 'ellipsoid':
+			if len(par) is not 6:
+				print 'Parameters of ellipsoid are not ok..'
+				return []
+			x0, y0, z0, a, b, c = par[0],par[1],par[2],par[3],par[4],par[5]
+			for i,p in enumerate(positions[1]):
+				if 	((p[0] - x0)**2)/float(a)**2 + \
+					((p[1] - y0)**2)/float(b)**2 + \
+					((p[2] - z0)**2)/float(c)**2 <= 1:
+					g.insert(len(g),i)	
+			
+			print 'Selected ellipsoidal shape of',len(g),'atoms'
+			
+			return g
 		else:
 			print 'Shape not recognized'
 			return []
 	else:
-		voro_types = voro_dump(0)
+		voro_types = voro_dump(frame)
 		return group(shape,par,frame)
 		
 def init(f):
@@ -149,7 +176,6 @@ def filter_group(group,prop):
 	prop -- property to return for this group
 	"""
 	ret = []
-	print 'Filtering group of ',len(group),'atoms'
 	for i in group:
 		ret.insert(len(ret),prop[i])
 		
@@ -450,7 +476,14 @@ def voro_combo_B(group=False):
 		return
 		
 	global node, voro_types
-	for frame in range(node.source.num_frames):
+	frames = range(node.source.num_frames)
+	print 'frames:',frames
+	# Avoid re-dumping
+	if voro_types[0] is not -1:
+		frames = numpy.roll(frames,(len(frames)-voro_types[0])%4)
+		print 'frames:',frames
+		print 'Rolling',(len(frames)-voro_types[0])%4,'frames to frame',frames[0]
+	for frame in frames:
 		voro_types = voro_dump(frame)
 		voro_histogram(frame) # all
 		voro_histogram(frame,group=group) # group
