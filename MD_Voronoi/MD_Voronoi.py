@@ -34,7 +34,7 @@ import numpy
 import os.path
 
 # Import Voronoi files headers
-import MD_Voronoi_Headers
+from MD_Voronoi_Headers import *
 
 # Import Voronoi analysis definitions
 from MD_Voronoi_Defs import *
@@ -508,6 +508,23 @@ def voro_combo_B(group=False):
 		voro_types = voro_dump(frame)
 		voro_histogram(frame) # all
 		voro_histogram(frame,group=group) # group
+
+def voro_combo_C():
+	""" - Dump for all particles (Don't write file)
+		- Histogram for all particles (Write file)
+	"""
+	global node, voro_types
+	frames = range(node.source.num_frames)
+	print 'frames:',frames
+	# Avoid re-dumping
+	if voro_types[0] is not -1:
+		frames = numpy.roll(frames,(len(frames)-voro_types[0])%len(frames))
+		print 'frames:',frames
+		print 'Rolling',(len(frames)-voro_types[0])%len(frames),'frames to frame',frames[0]
+	for frame in frames:
+		voro_types = voro_dump(frame)
+		voro_histogram(frame) # all
+
 
 # TODO: Just dump voronoi cell info per particle with position and ID
 #       for later analysis.
