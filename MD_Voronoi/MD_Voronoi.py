@@ -298,7 +298,7 @@ def voro_histogram(frame, force=False, writeFile=True, group='all', just=False):
 		histFile = os.path.realpath(workDir+'/hist_MD_Voronoi_'+suffix)	
 		if os.path.isfile(histFile) is not True:
 			hFile = open(histFile, 'w')
-			hFile.write(MD_Voronoi_Headers.voro_hist_header())
+			hFile.write(voro_hist_header())
 			hFile.close()
 		
 		hFile = open(histFile, 'r')
@@ -372,7 +372,7 @@ def voro_dump(frame, writeFile=False):
 	
 	if(writeFile):
 		dump_file = open(workDir+'/dump_MD_Voronoi_Frame_'+`frame`, 'w')
-		dump_file.write(MD_Voronoi_Headers.voro_dump_header(lammpstrj_file))
+		dump_file.write(voro_dump_header(lammpstrj_file))
 		dump_file.write('id particle_type x y z voro_type\n')	
 		for i in range(numOfParticles):
 			dump_file.write('%u %i %f %f %f %u\n' % (	ids[i], 			\
@@ -454,7 +454,7 @@ full analysis will write down this file with respect of frame 0'
 		changesFile = os.path.realpath(workDir+'/changesHist_'+which+'_MD_Voronoi')	
 		if os.path.isfile(changesFile) is not True:
 			cFile = open(changesFile, 'w')
-			cFile.write(MD_Voronoi_Headers.voro_changes_header())
+			cFile.write(voro_changes_header())
 			cFile.close()
 		
 		cFile = open(changesFile, 'r')
