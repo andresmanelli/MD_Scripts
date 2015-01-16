@@ -210,21 +210,22 @@ def voro_freq(frame, just=False, group='all'):
 	"""
 	global voro_indices, voro_types, types
 	
-	voro_filtered = []
-	voro_pre_filtered = []
+	voro_filtered = voro_indices[1]
+	voro_pre_filtered = voro_filtered
 	if(frame == voro_indices[0]):
 		if group is not 'all':
 			voro_pre_filtered = filter_group(group, voro_indices[1])
 			
 		if just is not False:
-			for i, index in enumerate(group):
-				if types[index] == just:
-					voro_filtered.insert(len(voro_filtered), voro_pre_filtered[i])
+			voro_filtered = []
+			for i, p in enumerate(voro_pre_filtered):
+				if types[i] == just:
+					voro_filtered.insert(len(voro_filtered), p)
 		else:
 			voro_filtered = voro_pre_filtered
 		
 		voro_filtered = numpy.array(voro_filtered)
-		
+
 		# In order to find unique rows
 		filtTemp = numpy.ascontiguousarray(voro_filtered).view(numpy.dtype((numpy.void, voro_filtered.dtype.itemsize * voro_filtered.shape[1])))
 		_, idx, inverse = numpy.unique(filtTemp, return_index=True, return_inverse=True)
@@ -233,7 +234,7 @@ def voro_freq(frame, just=False, group='all'):
 		counts = numpy.bincount(inverse)
 		indices = numpy.argsort(counts)[::-1]
 		
-		for i in range(10):
+		for i in range(20):
 			print unique[indices[i]],' : ',counts[indices[i]]
 			
 		return [unique[indices],counts[indices]]
@@ -515,16 +516,32 @@ def voro_combo_C():
 	"""
 	global node, voro_types
 	frames = range(node.source.num_frames)
-	print 'frames:',frames
+	#print 'frames:',frames
 	# Avoid re-dumping
 	if voro_types[0] is not -1:
 		frames = numpy.roll(frames,(len(frames)-voro_types[0])%len(frames))
-		print 'frames:',frames
-		print 'Rolling',(len(frames)-voro_types[0])%len(frames),'frames to frame',frames[0]
+		#print 'frames:',frames
+		#print 'Rolling',(len(frames)-voro_types[0])%len(frames),'frames to frame',frames[0]
 	for frame in frames:
 		voro_types = voro_dump(frame)
 		voro_histogram(frame) # all
 
+def voro_combo_D(group=False):
+	""" - Dump for all particles (Don't write file)
+		- Histogram for given group (Write file)
+	"""
+	if group is False:
+		print 'This combo requies a group to be specified'
+		return
+		
+	global node, voro_types
+	frames = range(node.source.num_frames)
+	# Avoid re-dumping
+	if voro_types[0] is not -1:
+		frames = numpy.roll(frames,(len(frames)-voro_types[0])%len(frames))
+	for frame in frames:
+		voro_types = voro_dump(frame)
+		voro_histogram(frame,group=group) # group
 
 # TODO: Just dump voronoi cell info per particle with position and ID
 #       for later analysis.
